@@ -1,5 +1,12 @@
 # Functions that will be used in the jupyter notebook will be stored here
 
-# Example
+# Question 2
+
 def stupid_function(string):
     print(string)
+
+
+# Question 1
+
+def new_function(x, y):
+    return x + y
