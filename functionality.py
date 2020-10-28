@@ -10,3 +10,10 @@ def stupid_function(string):
 
 def new_function(x, y):
     return x + y
+
+
+# questions 3
+
+
+def funct_3(t):
+    return t**3
