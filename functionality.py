@@ -116,8 +116,8 @@ def conversion_rate_per_category(data_set):
 
     view_purchase_per_category = views_per_category.merge(purchases_per_category, how='outer', left_index=True,
                                                           right_index=True)
-    view_purchase_per_category['purchase_rate'] = (
-                                                              view_purchase_per_category.num_purchase / view_purchase_per_category.num_view) * 100
+    view_purchase_per_category['purchase_rate'] = (view_purchase_per_category.num_purchase /
+                                                   view_purchase_per_category.num_view) * 100
     view_purchase_per_category = view_purchase_per_category.sort_values(by='purchase_rate', ascending=False)[
         'purchase_rate'].fillna(0)
 
