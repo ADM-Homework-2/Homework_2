@@ -82,6 +82,24 @@ def category_brand_highest_price(data_set, missing_treatment='unknown_brand'):
     return sorted_data_frame, highest_price_brands
 
 
+# ------- Research Question 5
+
+def most_popular_hours(data_set):
+    """
+    What time of the day does our web-site have the most number of visits
+
+    :param
+    :return: plot number of visits per hour
+    """
+
+    data_set_view = data_set[data_set.event_type == 'view']
+    data_set_view.loc[:, 'event_time_month'] = data_set_view.event_time.dt.month
+    data_set_view.loc[:, 'event_time_week_year'] = data_set_view.event_time.dt.weekofyear
+    data_set_view.loc[:, 'event_time_week'] = data_set_view.event_time.dt.dayofweek
+    data_set_view.loc[:, 'event_time_hour'] = data_set_view.event_time.dt.hour
+
+
+
 # ------- Research Question 6
 
 
