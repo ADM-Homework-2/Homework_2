@@ -176,3 +176,7 @@ def pareto_proof_online_shop(data_set, income_threshold=0.8):
         xytext=(-80, +30), textcoords='offset points', fontsize=10,
         arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"))
     plt.show()
+
+
+    print('ijnvnoindsi')
+    
