@@ -2,7 +2,99 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+#-------- Research Question 2
+def plot_sold_product_category(data_set,missing_treatment='unknown_category'):
+  
+    '''
+    This function return the number of sold product for category
+    
+    '''
+    if missing_treatment:
+        data_set['category_code'] = data_set.brand.fillna(missing_treatment)
+    
+    # Convert event time into month
+    data_set['event_time'] = pd.to_datetime(data_set.event_time).dt.month
+    
+    #Introduce the column category
+    data_set['category'] = data_set['category_code'].apply(lambda x: x.split('.')[0])
+    
+    ### we can drop the column category_code?    ####
+    
+    #filter the sold product
+    data_set_purchase = data_set[data_set.event_type == 'purchase']
+    data_set_purchase = data_set_purchase[data_set_purchase['category_code']!='missing_category_code']
+    
+    #a plot showing the number of sold products per category
+    data_set_purchase['category'].value_counts().head(20).plot.bar(\
+    figsize = (18, 7), \
+    title='Top Category')
+    plt.xlabel('Category')
+    plt.ylabel('Number of sold products')
+    plt.show()
 
+def plot_visited_product_subcategory(data_set,missing_treatment='unknown_category'):
+    '''
+    This function return the number of visited product for subcategory
+    
+    '''
+    if missing_treatment:
+        data_set['category_code'] = data_set.brand.fillna(missing_treatment)
+        
+    # Convert event time into month
+    data_set['event_time'] = pd.to_datetime(data_set.event_time).dt.month
+    
+    #Introduce the column sub_category
+    data_set['subcategory_code'] = data_set['category_code'].apply(lambda x: re.findall(r'\.(.*)', x)[0] if len(x.split('.')) != 1 else x)
+    
+    #filter the visited product
+    data_set_view = data_set[data_set.event_type == 'view']
+    data_set_view = data_set_view[data_set_view['category']!='missing_category_code']
+    
+    #A Plot showing the most visited subcategories
+    plt.figure(figsize=(18,7))
+    data_set_view['subcategory_code'].value_counts().head(20).plot.bar()
+    plt.title('Top Subcategory',fontsize=18)
+    plt.xlabel('Subcategory')
+    plt.ylabel('Number of visited product')
+    plt.show()
+    
+def ten_most_sold(data_set,missing_treatment='unknown_category'):
+    '''
+    This function returns the 10 most sold products for category
+    
+    '''
+    if missing_treatment:
+        data_set['category_code'] = data_set.brand.fillna(missing_treatment)
+      
+    # Convert event time into month
+    data_set['event_time'] = pd.to_datetime(data_set.event_time).dt.month
+    
+    #Introduce the column category
+    data_set['category'] = data_set['category_code'].apply(lambda x: x.split('.')[0])
+    
+    #filter the sold product
+    data_set_purchase = data_set[data_set.event_type == 'purchase']
+    data_set_purchase = data_set_purchase[data_set_purchase['category_code']!='missing_category_code']
+    
+    #find the category
+    categorie=data_set_purchase['category'].unique()
+    #find mounths
+    mesi=data_set_purchase['event_time'].unique()
+    
+   #create a new dataframe which conteins for each product the number of sold pz
+    df=data_set_purchase.groupby(['event_time','category','product_id']).count()
+    df.reset_index(inplace=True)
+    df.rename(columns={'user_id':'totale_pezzi'},inplace=True)
+    df.drop(columns=['event_type','subcategory_code'],inplace=True)
+    
+   # create a new dataframe which conteins mounth,category,product,number of sold pz
+
+    new_df=pd.DataFrame(columns=df.columns)
+    for m in mesi:
+        for c in categorie:
+            temp=df[(df['category']==c) & (df['event_time']==m)].sort_values('totale_pezzi',ascending=False).head(10)
+            new_df=pd.concat([new_df,temp])
+    print(new_df)
 # ------- Research Question 3
 
 def plot_average_price_brand_category(data_set, category_id, missing_treatment='unknown_brand'):
@@ -176,3 +268,4 @@ def pareto_proof_online_shop(data_set, income_threshold=0.8):
         xytext=(-80, +30), textcoords='offset points', fontsize=10,
         arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"))
     plt.show()
+
