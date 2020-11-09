@@ -366,21 +366,45 @@ def category_brand_highest_price(data_set, missing_treatment='unknown_brand'):
     return sorted_data_frame, highest_price_brands
 
 
-# ------- Research Question 5
 
-def most_popular_hours(data_set):
-    """
-    What time of the day does our web-site have the most number of visits
+#---------Research Question 5
+def plot_hourly_average_visitors(data_set,day):
+   '''
+   This function plot the hourly average visitors for a given day
+   '''
 
-    :param
-    :return: plot number of visits per hour
-    """
-
+    # remove the columns we don't need
+    data_set.drop(columns=['product_id','category_id','category_code','brand','price','user_session'],inplace=True)
+    
+                                            
+    #filter the event visits                                       
     data_set_view = data_set[data_set.event_type == 'view']
-    data_set_view.loc[:, 'event_time_month'] = data_set_view.event_time.dt.month
-    data_set_view.loc[:, 'event_time_week_year'] = data_set_view.event_time.dt.weekofyear
-    data_set_view.loc[:, 'event_time_week'] = data_set_view.event_time.dt.dayofweek
-    data_set_view.loc[:, 'event_time_hour'] = data_set_view.event_time.dt.hour
+    data_set_view['month'] = pd.to_datetime(data_set_view.event_time).dt.month
+    data_set_view['week'] = pd.to_datetime(data_set_view.event_time).dt.weekofyear
+    data_set_view['day'] = pd.to_datetime(data_set_view.event_time).dt.dayofweek
+    data_set_view['hour'] = pd.to_datetime(data_set_view.event_time).dt.hour
+    data_set_view.drop(columns=['event_time','event_type'],inplace=True)
+    
+    #filter the day of the week for which we wont the hourly average visitors
+    d={'Monday':1,'Tuesday':2,'Wednesday':3,'Thursday':4,'Friday':5,'Saturday':6,'Sunday':7}
+    data_set_view=data_set_view[data_set_view['day']==d[day]]
+    data_set.drop(columns='day',inplace=True)
+                      
+    
+    #count the number of visitors for hour
+    data_set_view=data_set_view.groupby(['month','week','hour']).count()
+   
+    data_set_view.rename(columns={'user_id':'total_visits'},inplace=True)
+    
+    data_set_view.reset_index(inplace=True)
+    
+    #plot the averge visitors for hour for the day selectioned
+    plt.figure(figsize=(6,6))
+    data_set_view.groupby('hour').totale_visite.mean().plot()
+    plt.xlabel('Hours')
+    plt.ylabel('Average visitors')
+    plt.title('Average visitors for hour for '+ day)
+    plt.show()
 
 
 # ------- Research Question 6
