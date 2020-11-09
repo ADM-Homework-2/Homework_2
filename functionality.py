@@ -128,8 +128,8 @@ def probability_purchase_given_cart(data_set):
     # We are only interested in events which finally ended up in a purchase, and only in cases for which there was a
     # prior cart action
     cart_before_purchase = cart_and_purchase[
-                                (cart_and_purchase['event_time_cart'] < cart_and_purchase['event_time_purchase']) & (
-                                            cart_and_purchase['event_type'] == 'purchase')]
+        (cart_and_purchase['event_time_cart'] < cart_and_purchase['event_time_purchase']) & (
+                cart_and_purchase['event_type'] == 'purchase')]
 
     prob_purchase = len(cart_before_purchase) / len(cart_df)
 
@@ -143,7 +143,43 @@ def probability_purchase_given_cart(data_set):
 # therefore be how to compute the moment in which the session ended. This will be done by looking at the time in which
 # the last view happened
 
+def average_time_remove_from_cart(data_set):
+    """
+    Compute the average time an item is in the cart (based on the first moment the product is put in the cart until the
+    last view of a specific session)
 
+    :param data_set:
+    :return:
+    """
+
+    session_product_with_multiple_events = data_set.groupby(
+        ['user_session', 'product_id']).event_type.nunique().reset_index(name='unique_event_type')
+    session_product_with_2_different_events = session_product_with_multiple_events[
+        session_product_with_multiple_events.unique_event_type == 2]
+    # Make a dataframe with all user_sessions and products with 2 events
+    merge_temp = session_product_with_2_different_events.merge(data_set, on=['user_session', 'product_id'])
+    # From these users, remove the purchases
+    merge_temp = merge_temp[merge_temp.event_type != 'purchase']
+    session_product_with_view_and_cart = merge_temp.groupby(
+        ['user_session', 'product_id']).event_type.nunique().reset_index(name='unique_event_type')
+    session_product_with_view_and_cart = session_product_with_view_and_cart[
+        session_product_with_view_and_cart.unique_event_type == 2]
+    session_product_with_view_and_cart_data_set = session_product_with_view_and_cart.merge(data_set,
+                                                                                           on=['user_session',
+                                                                                               'product_id'])
+    product_in_cart_df = session_product_with_view_and_cart_data_set[
+        session_product_with_view_and_cart_data_set.event_type == 'cart'].groupby(
+        ['user_session', 'product_id']).first()
+    product_removed_from_cart_df = session_product_with_view_and_cart_data_set[
+        session_product_with_view_and_cart_data_set.event_type == 'view'].groupby(['user_session', 'product_id']).last()
+
+    product_in_cart = pd.to_datetime(product_in_cart_df['event_time'])
+    product_removed_from_cart = pd.to_datetime(product_removed_from_cart_df['event_time'])
+
+    time_in_cart = product_removed_from_cart - product_in_cart
+    average_time_in_cart = time_in_cart.mean()
+
+    return average_time_in_cart
 
 
 # 1.e.
@@ -184,9 +220,6 @@ def average_time_between_view_cart_purchase(data_set):
     average_view_purchase = time_before_cart.mean()
 
     return average_view_cart, average_view_purchase
-
-
-
 
 
 # -------- Research Question 2
@@ -366,44 +399,42 @@ def category_brand_highest_price(data_set, missing_treatment='unknown_brand'):
     return sorted_data_frame, highest_price_brands
 
 
-
-#---------Research Question 5
-def plot_hourly_average_visitors(data_set,day):
-   '''
-   This function plot the hourly average visitors for a given day
-   '''
+# ---------Research Question 5
+def plot_hourly_average_visitors(data_set, day):
+    '''
+    This function plot the hourly average visitors for a given day
+    '''
 
     # remove the columns we don't need
-    data_set.drop(columns=['product_id','category_id','category_code','brand','price','user_session'],inplace=True)
-    
-                                            
-    #filter the event visits                                       
+    data_set.drop(columns=['product_id', 'category_id', 'category_code', 'brand', 'price', 'user_session'],
+                  inplace=True)
+
+    # filter the event visits
     data_set_view = data_set[data_set.event_type == 'view']
     data_set_view['month'] = pd.to_datetime(data_set_view.event_time).dt.month
     data_set_view['week'] = pd.to_datetime(data_set_view.event_time).dt.weekofyear
     data_set_view['day'] = pd.to_datetime(data_set_view.event_time).dt.dayofweek
     data_set_view['hour'] = pd.to_datetime(data_set_view.event_time).dt.hour
-    data_set_view.drop(columns=['event_time','event_type'],inplace=True)
-    
-    #filter the day of the week for which we wont the hourly average visitors
-    d={'Monday':1,'Tuesday':2,'Wednesday':3,'Thursday':4,'Friday':5,'Saturday':6,'Sunday':7}
-    data_set_view=data_set_view[data_set_view['day']==d[day]]
-    data_set.drop(columns='day',inplace=True)
-                      
-    
-    #count the number of visitors for hour
-    data_set_view=data_set_view.groupby(['month','week','hour']).count()
-   
-    data_set_view.rename(columns={'user_id':'total_visits'},inplace=True)
-    
+    data_set_view.drop(columns=['event_time', 'event_type'], inplace=True)
+
+    # filter the day of the week for which we wont the hourly average visitors
+    d = {'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 7}
+    data_set_view = data_set_view[data_set_view['day'] == d[day]]
+    data_set.drop(columns='day', inplace=True)
+
+    # count the number of visitors for hour
+    data_set_view = data_set_view.groupby(['month', 'week', 'hour']).count()
+
+    data_set_view.rename(columns={'user_id': 'total_visits'}, inplace=True)
+
     data_set_view.reset_index(inplace=True)
-    
-    #plot the averge visitors for hour for the day selectioned
-    plt.figure(figsize=(6,6))
+
+    # plot the averge visitors for hour for the day selectioned
+    plt.figure(figsize=(6, 6))
     data_set_view.groupby('hour').totale_visite.mean().plot()
     plt.xlabel('Hours')
     plt.ylabel('Average visitors')
-    plt.title('Average visitors for hour for '+ day)
+    plt.title('Average visitors for hour for ' + day)
     plt.show()
 
 
