@@ -654,23 +654,62 @@ def conversion_rate_per_category(data_sets,
 
 # ------- Research Question 7
 
-def pareto_proof_online_shop(data_set, income_threshold=0.8):
+def pareto_proof_online_shop(data_sets,
+                             columns_used=('event_type', 'user_id', 'price'),
+                             chunk_size=1000000,
+                             income_threshold=0.8):
     """
     Prove that the pareto principle is fulfilled by our online shop
 
-    :param data_set: Data set over which pareto principle wil be proven
+    :param data_sets: List with strings in which data sets are stored
+    :param columns_used: Columns required for analysis
+    :param chunk_size: Chunks over which to read the data sets
     :param income_threshold: Threshold for which we will prove the amount of customers that produce that amount of
         income
     :return: Plot and percentage of customers that generate the given income_threshold
     """
 
-    # Ccompute the income at user_id level
-    purchase_events = data_set[data_set.event_type == 'purchase']
-    income_per_user_id = purchase_events.groupby(purchase_events.user_id).price.sum().sort_values(ascending=False)
+    assert isinstance(data_sets,
+                      list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
+    assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
+
+    bar = progressbar.ProgressBar(maxval=111,
+                                  widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                           progressbar.Percentage()])
+    bar.start()
+    i = 0
+
+    # Define empty list in which we will append the chunked data sets
+    chunk_list = []
+
+    # Run over different data sets
+    for data_set in data_sets:
+        print('Running data_set:', data_set)
+        month_data = pd.read_csv(data_set, sep=',',
+                                 delimiter=None, header='infer',
+                                 usecols=columns_used,
+                                 encoding="ISO-8859-1",
+                                 chunksize=chunk_size)
+
+        # In order to avoid working with the complete data set we will split data in chunk sizes
+        for chunk in month_data:
+            bar.update(i + 1)
+            i += 1
+
+            # We are only interested in purchase events
+            processed_chunk = chunk[chunk.event_type == 'purchase']
+
+            # Once the data filtering is done, append the chunk to list
+            chunk_list.append(processed_chunk)
+
+    bar.finish()
+    working_data_set = pd.concat(chunk_list, ignore_index=True)
+
+    # Compute the income at user_id level
+    income_per_user_id = working_data_set.groupby(working_data_set.user_id).price.sum().sort_values(ascending=False)
 
     # From the previous Series extract the income and users that have generated the total income
     income_values = income_per_user_id.values
-    users = income_per_user_id.index
 
     # Construct cumulative percentage of income and users
     income_percentage_cumulative = [income_values[0]] * len(income_values)
@@ -698,46 +737,3 @@ def pareto_proof_online_shop(data_set, income_threshold=0.8):
         xytext=(-80, +30), textcoords='offset points', fontsize=10,
         arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"))
     plt.show()
-
-
-def run_over_data_sets(data_sets, columns_used=('event_time', 'category_code', 'brand', 'event_type'),
-                       chunk_size=1000000):
-    """
-    This function will run over the data sets. Please provide the data set as a list of strings
-    with the path in which the data set is located
-    """
-
-    assert isinstance(data_sets,
-                      list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
-    assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
-
-    # Define empty list in which we will append the chunked data sets
-    chunk_list = []
-
-    for data_set in data_sets:
-        print(data_set)
-        month_data = pd.read_csv(data_set, sep=',',
-                                 delimiter=None, header='infer',
-                                 usecols=columns_used,
-                                 encoding="ISO-8859-1",
-                                 parse_dates=['event_time'],
-                                 date_parser=pd.to_datetime,
-                                 chunksize=chunk_size)
-
-        # In order to avoid working with the complete data set we will split data in chunk sizes
-        for chunk in month_data:
-            # perform data filtering
-
-            print(len(chunk_list))
-            print('======================')
-
-            # Any pre-processing action will be done here !!!!
-            chunk_filter = chunk[chunk.event_type == 'purchase']
-            # Any pre-processing action will be done here !!!!
-
-            # Once the data filtering is done, append the chunk to list
-            chunk_list.append(chunk_filter)
-
-    working_data_set = pd.concat(chunk_list, ignore_index=True)
-
-    return working_data_set
