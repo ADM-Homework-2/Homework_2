@@ -173,6 +173,50 @@ def category_brand_highest_price(data_set, missing_treatment='unknown_brand'):
 
     return sorted_data_frame, highest_price_brands
 
+#---------Research Question 4
+def plot_profit_for_brand(data_set,brand):
+    '''
+    This function return the plot of the profit of a brand passed in input
+    '''
+    # Convert event time into month
+    data_set['event_time'] = pd.to_datetime(data_set.event_time).dt.mont
+    
+    #filter the sold product
+    data_set_purchase = data_set[data_set.event_type == 'purchase']
+    
+    #clean the column brand
+    data_set_purchase.dropna(subset=['brand'],inplace=True)
+    
+    #filter the product sold by the brand in input
+    data_set_purchase_brand=data_set_purchase[data_set_purchase['brand']==brand]
+    
+    #plot the profit for each mounth
+    #we use the yscale=log to be able to visualize the profit in a better way due to its size is of the order od 10^6
+    plt.figure(figsize=(6,6))
+    data_set_purchase_brand.groupby('event_time').price.sum().plot.bar()
+    plt.yscale('log')
+    plt.show()
+    
+def plot_average_price_brand(data_set):
+    '''
+    This function return the plot of the average price of products of different brands
+    '''
+    
+    #consider the product view because these are the ones which are offered from the brand
+    data_set_view=data_set[data_set['event_type']=='view']
+    
+    #remove the rows which contain a null value in brand
+    data_set_view.dropna(subset=['brand'],inplace=True)
+    
+    #each product have to be considered only one time so we remove the duplicates
+    df=data_set_view.drop_duplicates(subset='product_id')
+    
+    #due to the number of brands are huge we plot the average price of the first 100 brand
+    plt.figure(figsize=(18,10))
+    df.groupby('brand').price.mean().sort_values(ascending=False).head(100).plot()
+    plt.show()
+    
+
 #---------Research Question 5
 def plot_hourly_average_visitors(data_set,day):
    '''
