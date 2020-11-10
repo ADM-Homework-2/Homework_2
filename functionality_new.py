@@ -354,7 +354,7 @@ def plot_average_price_brand_category(data_sets,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
-    i=0
+    i = 0
     for data_set in data_sets:
         print('Running data_set:', data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -462,7 +462,7 @@ def category_brand_highest_price(data_sets,
     # Make sure we really have the unique price values at category, brand and product_id levels over the different
     # chunks
     unique_prices = working_data_set.drop_duplicates(subset=['parent_category', 'brand', 'product_id', 'price'])[
-                ['parent_category', 'brand', 'product_id', 'price']]
+        ['parent_category', 'brand', 'product_id', 'price']]
 
     # Group to obtain the average product price at category level for each brand
     grouped_set = unique_prices.groupby(['parent_category', 'brand', 'product_id']).price.mean().groupby(
@@ -520,50 +520,136 @@ def plot_hourly_average_visitors(data_set, day):
 
 # ------- Research Question 6
 
-
-def conversion_rate(data_set, nominator='purchase', denominator='view'):
+def conversion_rate(data_sets,
+                    chunk_size=1000000):
     """
     Purchases against views conversion rate
 
-    :param data_set: Data set over which the overall conversion rate will be computed
-    :param nominator: Number of conversions (default is purchase)
-    :param denominator: Number of possible conversions (default is view)
-    :return: Conversion rate
+    :param data_sets: List with strings in which data sets are stored
+    :param chunk_size: Chunks over which to read the data sets
+    :return: Conversion rate of online shop
     """
 
-    rate = len(data_set[data_set.event_type == nominator]) / len(data_set[data_set.event_type == denominator])
+    assert isinstance(data_sets,
+                      list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
+    assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
 
-    return round(rate, 4)
+    bar = progressbar.ProgressBar(maxval=111,
+                                  widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                           progressbar.Percentage()])
+    bar.start()
+    i = 0
+    # Define integer with number of views and number of purchases
+    number_views = 0
+    number_purchases = 0
+    for data_set in data_sets:
+        print('Running data_set:', data_set)
+        month_data = pd.read_csv(data_set, sep=',',
+                                 delimiter=None, header='infer',
+                                 usecols=['event_type'],
+                                 encoding="ISO-8859-1",
+                                 chunksize=chunk_size)
+
+        # In order to avoid working with the complete data set we will split data in chunk sizes
+        for chunk in month_data:
+            bar.update(i + 1)
+            i += 1
+
+            # Look at the number of purchases and views in each chunk of data and include them in the corresponding
+            # variable
+            number_views += len(chunk[chunk.event_type == 'view'])
+            number_purchases += len(chunk[chunk.event_type == 'purchase'])
+
+    bar.finish()
+
+    overall_conversion_rate = number_purchases / number_views
+
+    return round(overall_conversion_rate, 4)
 
 
-# TODO: make sure we are understanding what we are being requested
-def conversion_rate_per_category(data_set):
+def conversion_rate_per_category(data_sets,
+                                 columns_used=('category_code', 'event_type'),
+                                 missing_treatment='unknown_category',
+                                 chunk_size=1000000):
     """
     Compute the conversion rate for each category and plot the results in decreasing order
 
-    :param data_set: Data set over which analysis will be performed
-    :return: Plot conversion rate and return data frame with the corresponding results
+    :param data_sets: List with strings in which data sets are stored
+    :param columns_used: Columns required for analysis
+    :param chunk_size: Chunks over which to read the data sets
+    :return: Conversion rate of online shop
     """
 
-    views_per_category = data_set[data_set.event_type == 'view'].groupby(['category_id']).agg(
-        num_view=('price', 'count'))
-    purchases_per_category = data_set[data_set.event_type == 'purchase'].groupby(['category_id']).agg(
-        num_purchase=('price', 'count'))
+    assert isinstance(data_sets,
+                      list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
+    assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
 
-    view_purchase_per_category = views_per_category.merge(purchases_per_category, how='outer', left_index=True,
-                                                          right_index=True)
-    view_purchase_per_category['purchase_rate'] = (view_purchase_per_category.num_purchase /
-                                                   view_purchase_per_category.num_view) * 100
-    view_purchase_per_category = view_purchase_per_category.sort_values(by='purchase_rate', ascending=False)[
-        'purchase_rate'].fillna(0)
+    bar = progressbar.ProgressBar(maxval=111,
+                                  widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                           progressbar.Percentage()])
+    bar.start()
+    i = 0
+    # Define data frame where we will store number of views and number of purchases
+    number_views_per_category = pd.DataFrame(columns=['category_id', 'view_count'], index=[])
+    number_views_per_category.set_index('category_id', inplace=True)
 
-    view_purchase_per_category.plot.bar(figsize=(18, 6))
-    plt.title('Purchase Rate Per Category', fontsize=18)
-    plt.xlabel('Category ID')
-    plt.ylabel('Purchase Rate (%)')
+    number_purchases_per_category = pd.DataFrame(columns=['category_id', 'purchase_count'], index=[])
+    number_purchases_per_category.set_index('category_id', inplace=True)
+
+    for data_set in data_sets:
+        print('Running data_set:', data_set)
+        month_data = pd.read_csv(data_set, sep=',',
+                                 delimiter=None, header='infer',
+                                 usecols=columns_used,
+                                 encoding="ISO-8859-1",
+                                 chunksize=chunk_size)
+
+        # In order to avoid working with the complete data set we will split data in chunk sizes
+        for chunk in month_data:
+            bar.update(i + 1)
+            i += 1
+
+            # Replace missings
+            if missing_treatment:
+                chunk['category_code'] = chunk.category_code.fillna(missing_treatment)
+
+            # Generate category name column
+            chunk['parent_category'] = chunk['category_code'].apply(lambda x: x.split('.')[0])
+
+            # Look at the number of purchases and views in each chunk of data. Set category name into the index so that
+            # we can then add dataframes in an easy manner
+            processed_chunk_view = chunk[chunk.event_type == 'view'].groupby(
+                'parent_category').event_type.count().reset_index(name='view_count').set_index(['parent_category'])
+            processed_chunk_purchase = chunk[chunk.event_type == 'purchase'].groupby(
+                'parent_category').event_type.count().reset_index(name='purchase_count').set_index(['parent_category'])
+
+            # Make something such that we can sum processed_chunk_view / processed_chunk_purchase over all chunks (we
+            # can sum easily indexed dataframes)
+            number_views_per_category = processed_chunk_view.add(number_views_per_category, fill_value=0)
+            number_purchases_per_category = processed_chunk_purchase.add(number_purchases_per_category, fill_value=0)
+
+    bar.finish()
+
+    # Merge processed_chunk_view and processed_chunk_purchase and do purchase/view. With this dataframe we can do plot
+    final_data_set = pd.merge(number_views_per_category, number_purchases_per_category,
+                              left_index=True, right_index=True)
+
+    final_data_set['conversion_rate'] = final_data_set.purchase_count / final_data_set.view_count
+    final_data_set = final_data_set.sort_values(by=['purchase_count'], ascending=False)
+
+    # Plot results
+    fig, ax = plt.subplots(figsize=(12,8))
+    ax.bar(final_data_set.index, final_data_set.purchase_count, color="red")
+    ax.set_xlabel("Categories", fontsize=14)
+    plt.xticks(rotation=45)
+    ax.set_ylabel("Number of purchases", fontsize=14)
+
+    ax2 = ax.twinx()
+    ax2.plot(final_data_set.index, final_data_set.conversion_rate, color="blue")
+    ax2.set_ylabel("Conversion Rate", fontsize=14)
     plt.show()
 
-    return view_purchase_per_category
+    return final_data_set
 
 
 # ------- Research Question 7
