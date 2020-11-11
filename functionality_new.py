@@ -454,6 +454,7 @@ def category_brand_highest_price(data_sets,
             # Generate category name column
             chunk['parent_category'] = chunk['category_code'].apply(lambda x: x.split('.')[0])
 
+            # Remove duplicates, such that we keep unique prices
             processed_chunk = chunk.drop_duplicates(subset=['parent_category', 'brand', 'product_id', 'price'])[
                 ['parent_category', 'brand', 'product_id', 'price']]
 
@@ -595,10 +596,10 @@ def conversion_rate_per_category(data_sets,
     bar.start()
     i = 0
     # Define data frame where we will store number of views and number of purchases
-    number_views_per_category = pd.DataFrame(columns=['category_id', 'view_count'], index=[])
+    number_views_per_category = pd.DataFrame(columns=['category_id', 'view_count'])
     number_views_per_category.set_index('category_id', inplace=True)
 
-    number_purchases_per_category = pd.DataFrame(columns=['category_id', 'purchase_count'], index=[])
+    number_purchases_per_category = pd.DataFrame(columns=['category_id', 'purchase_count'])
     number_purchases_per_category.set_index('category_id', inplace=True)
 
     for data_set in data_sets:
