@@ -635,11 +635,10 @@ def conversion_rate_per_category(data_sets,
     bar.finish()
 
     # Merge processed_chunk_view and processed_chunk_purchase and do purchase/view. With this dataframe we can do plot
-    final_data_set = pd.merge(number_views_per_category, number_purchases_per_category,
-                              left_index=True, right_index=True)
+    final_data_set = pd.concat([number_views_per_category, number_purchases_per_category], axis=1).fillna(0)
 
     final_data_set['conversion_rate'] = final_data_set.purchase_count / final_data_set.view_count
-    final_data_set = final_data_set.sort_values(by=['purchase_count'], ascending=False)
+    final_data_set = final_data_set.sort_values(by=['conversion_rate'], ascending=False)
 
     # Plot results
     fig, ax = plt.subplots(figsize=(12,8))
