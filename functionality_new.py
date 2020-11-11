@@ -328,7 +328,8 @@ def plot_average_price_brand_category(data_sets,
                                       category_name='electronics',
                                       missing_treatment='unknown_',
                                       num_top_brand=20,
-                                      chunk_size=1000000):
+                                      chunk_size=1000000,
+                                      test=False):
     """
     This function will return the brand with the highest average price of their products per category
 
@@ -396,6 +397,9 @@ def plot_average_price_brand_category(data_sets,
     # additional average at brand level to get the average price of each brand
     average_price = unique_prices.groupby(['brand', 'product_id']).price.mean().groupby(
         ['brand']).mean().sort_values(ascending=False)
+
+    if test:
+        return average_price
 
     if num_top_brand:
         average_price = average_price.head(num_top_brand)
