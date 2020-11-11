@@ -23,3 +23,4 @@ def test_conversion_rate_per_category():
     assert np.all(expected_results['Conversion Rate'] == python_results.conversion_rate.values)
     assert np.all(expected_results['category_name'] == python_results.index)
     assert np.all(expected_results['Count Purchase'] == python_results.purchase_count.values)
+
