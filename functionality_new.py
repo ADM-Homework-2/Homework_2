@@ -341,6 +341,7 @@ def plot_average_price_brand_category(data_sets,
     :param num_top_brand: Number of top brands we want to plot. Provide none if we want to see all (might lead to
         unreadable graphs)
     :param chunk_size: Chunks over which to read the data sets
+    :param test: Boolean used for testing purposes
     :return: Plot
     """
 
@@ -635,11 +636,10 @@ def conversion_rate_per_category(data_sets,
     bar.finish()
 
     # Merge processed_chunk_view and processed_chunk_purchase and do purchase/view. With this dataframe we can do plot
-    final_data_set = pd.merge(number_views_per_category, number_purchases_per_category,
-                              left_index=True, right_index=True)
+    final_data_set = pd.concat([number_views_per_category, number_purchases_per_category], axis=1).fillna(0)
 
     final_data_set['conversion_rate'] = final_data_set.purchase_count / final_data_set.view_count
-    final_data_set = final_data_set.sort_values(by=['purchase_count'], ascending=False)
+    final_data_set = final_data_set.sort_values(by=['conversion_rate'], ascending=False)
 
     # Plot results
     fig, ax = plt.subplots(figsize=(12,8))
@@ -661,7 +661,8 @@ def conversion_rate_per_category(data_sets,
 def pareto_proof_online_shop(data_sets,
                              columns_used=('event_type', 'user_id', 'price'),
                              chunk_size=1000000,
-                             income_threshold=0.8):
+                             income_threshold=0.8,
+                             test=False):
     """
     Prove that the pareto principle is fulfilled by our online shop
 
@@ -670,6 +671,7 @@ def pareto_proof_online_shop(data_sets,
     :param chunk_size: Chunks over which to read the data sets
     :param income_threshold: Threshold for which we will prove the amount of customers that produce that amount of
         income
+    :param test: Boolean used for testing purposes
     :return: Plot and percentage of customers that generate the given income_threshold
     """
 
@@ -710,20 +712,21 @@ def pareto_proof_online_shop(data_sets,
     working_data_set = pd.concat(chunk_list, ignore_index=True)
 
     # Compute the income at user_id level
-    income_per_user_id = working_data_set.groupby(working_data_set.user_id).price.sum().sort_values(ascending=False)
+    income_values = working_data_set.groupby(working_data_set.user_id).price.sum().sort_values(ascending=False).values
 
-    # From the previous Series extract the income and users that have generated the total income
-    income_values = income_per_user_id.values
+    # Compute the percentage of income each user generates
+    income_perc_values = income_values / sum(income_values)
 
-    # Construct cumulative percentage of income and users
-    income_percentage_cumulative = [income_values[0]] * len(income_values)
-    for i in range(1, len(income_percentage_cumulative)):
-        income_percentage_cumulative[i] = income_percentage_cumulative[i - 1] + income_values[i]
-    income_percentage_cumulative = income_percentage_cumulative / np.sum(income_values)
+    # Compute the cumulative income percentage and the percentage of users in an array (both arrays ten to 1)
+    income_percentage_cumulative = np.cumsum(income_perc_values)
     users_percentage = np.linspace(1 / len(income_values), 1, len(income_values))
 
     # Compute the percentage of users that generate the percentage of threshold income (used for plotting purposes)
-    perc_users_income_threshold = users_percentage[np.argmax(income_percentage_cumulative > income_threshold)]
+    perc_income_threshold = income_percentage_cumulative[income_percentage_cumulative < income_threshold]
+    perc_users_income_threshold = len(perc_income_threshold) / len(income_percentage_cumulative)
+
+    if test:
+        return perc_users_income_threshold
 
     plt.figure(figsize=(8, 6))
     plt.plot(income_percentage_cumulative, users_percentage)
@@ -741,3 +744,4 @@ def pareto_proof_online_shop(data_sets,
         xytext=(-80, +30), textcoords='offset points', fontsize=10,
         arrowprops=dict(arrowstyle="->", connectionstyle="arc3,rad=.2"))
     plt.show()
+

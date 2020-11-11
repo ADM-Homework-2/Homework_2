@@ -8,7 +8,7 @@ def test_highest_price_per_category_brand():
 
     expected_results = pd.read_excel('test_data/Question_3.xlsx', 'Results_1')
 
-    _, python_results = funcs.category_brand_highest_price(data_sets=['test_data/Question_3_test.csv'],
+    _, python_results = funcs.category_brand_highest_price(data_sets=['test_data/Question_3.csv'],
                                                            missing_treatment='missing_')
 
     assert np.all(expected_results['Average per category'] == python_results.values)
