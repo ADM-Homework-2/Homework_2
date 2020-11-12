@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 import progressbar
+import seaborn as sns
 pd.options.mode.chained_assignment = None
 
 
@@ -270,10 +271,18 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
     final_data_set = working_data_set.groupby('event_time')['category'].value_counts()
     final_data_set = final_data_set.groupby(level=0, group_keys=False).apply(
         lambda x: x.sort_values(ascending=False).head(20))
-    final_data_set.plot.bar(figsize=(18, 7), title='Top Category')
-    plt.xlabel('Category')
-    plt.ylabel('Number of sold products')
-    plt.show()
+    final_data_set.reset_index(name='Sold products per category')
+    # final_data_set.plot.bar(figsize=(18, 7), title='Top Category')
+    # plt.xlabel('Category')
+    # plt.ylabel('Number of sold products')
+    # plt.show()
+
+    g = sns.catplot(x="category",
+                    y="Sold products per category",
+                    hue="event_time",
+                    data=final_data_set,
+                    kind="bar")
+    g.set_xticklabels(rotation=90)
 
     return final_data_set
 
@@ -705,20 +714,16 @@ def plot_hourly_average_visitors(data_sets, day, columns_used=('event_time', 'ev
 
     working_data_set = pd.concat(chunk_list, ignore_index=True)
 
-    # count the number of visitors for hour
-    # working_data_set =working_data_set.groupby(['month', 'hour']).count()
-
-    # working_data_set.rename(columns={'user_id': 'total_visits'}, inplace=True)
-
-    # working_data_set.reset_index(inplace=True)
-
-    # plot the averge visitors for hour for the day selectioned
+    # plot the average visitors for hour for the day selected
     plt.figure(figsize=(6, 6))
-    working_data_set.groupby(['month', 'wek', 'hour']).user_id.count().groupby('hour').mean().plot.bar()
+    final_data_set = working_data_set.groupby(['month', 'week', 'hour']).user_id.count().groupby('hour').mean()
+    final_data_set.plot.bar()
     plt.xlabel('Hours')
     plt.ylabel('Average visitors')
     plt.title('Average visitors for hour for ' + day)
     plt.show()
+
+    return final_data_set
 
 
 # ------- Research Question 6
