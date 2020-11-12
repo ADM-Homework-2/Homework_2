@@ -312,14 +312,18 @@ def plot_visited_product_subcategory(data_sets,columns_used=('event_time','categ
             processed_data_set = temp.add(processed_data_set, fill_value=0)
 
 
-    # A Plot showing the most visited subcategories
-    plt.figure(figsize=(18, 7))
-    processed_data_set.groupby(level=0, group_keys=False).apply(
-        lambda x: x.sort_values(by=['count_sub_categories'], ascending=False).head(20)).plot.bar()
-    plt.title('Top Subcategory', fontsize=18)
-    plt.xlabel('Subcategory')
-    plt.ylabel('Number of visited product')
-    plt.show()
+    # A Plot showing the most visited subcategories for month
+    processed_data_set=processed_data_set.groupby(level=0, group_keys=False).apply(
+        lambda x: x.sort_values(by=['count_sub_categories'], ascending=False).head(20))
+    processed_data_set.reset_index(inplace=True)
+    g=sns.catplot(y='count_sub_categories',
+              x='subcategory_code',
+              hue='event_time',
+              data=processed_data_set,
+              kind='bar')
+    g.set_xticklabels(rotation=90)
+
+    return processed_data_set
 
 
 def ten_most_sold(data_sets,columns_used=('event_time','event_type','category_code','product_id','user_id'),chunk_size=1000000):
@@ -469,8 +473,10 @@ def plot_profit_for_brand(data_sets,brand,columns_used=('event_time','brand','ev
     '''
     This function return the plot of the profit of a brand passed in input
     '''
-    chunk_list = []
+    processed_data_set=pd.DataFrame(columns=['event_time','brand','total_profit'])
+    processed_data_set.set_index(['event_time','brand'],inplace=True)
 
+    brands_set=set()
     for data_set in data_sets:
         print(data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -490,24 +496,52 @@ def plot_profit_for_brand(data_sets,brand,columns_used=('event_time','brand','ev
             chunk_purchase = chunk[chunk.event_type == 'purchase']
 
             #filter the product sold by the brand in input
-            chunk_purchase_brand=chunk_purchase[chunk_purchase['brand']==brand]
+            #chunk_purchase_brand=chunk_purchase[chunk_purchase['brand']==brand]
+
+            #clean the column brand
+            chunk_purchase.dropna(subset=['brand'],inplace=True)
+
+            #find all brands
+            brands_array=chunk_purchase['brand'].unique()
+            for b in brands_array:
+                brands_set.add(b)
 
             # Convert event time into month
-            chunk_purchase_brand['event_time'] = chunk_purchase_brand.event_time.dt.month
+            chunk_purchase['event_time'] = chunk_purchase.event_time.dt.month
 
             #remove the columns we don't need
-            chunk_purchase_brand.drop(columns=['brand', 'event_type'], inplace=True)
+            chunk_purchase.drop(columns=['event_type'], inplace=True)
 
-            chunk_list.append(chunk_purchase_brand)
+            #calculate the profit for each brand
+            chunk_purchase=chunk_purchase.groupby(['event_time','brand']).price.sum().reset_index(name='total_profit').set_index(['event_time','brand'])
 
-    working_data_set=pd.concat(chunk_list,ignore_index=True)
- 
-    #plot the profit for each mounth
-    #we use the yscale=log to be able to visualize the profit in a better way due to its size is of the order od 10^6
-    plt.figure(figsize=(6,6))
-    working_data_set.groupby('event_time').price.sum().plot.bar()
-    plt.yscale('log')
+            processed_data_set=chunk_purchase.add(processed_data_set,fill_value=0)
+    
+    final_data_set=pd.DataFrame(columns=['brand','loss_or_gain_profit'])
+    
+    #to be able to do some filter we have to restore the columns
+    processed_data_set.reset_index(inplace=True)
+
+    #plot the profit for month for the brand given in input
+    g=processed_data_set[processed_data_set['brand']==brand]
+    g.plot(x='event_time',y='total_profit',kind='bar')
     plt.show()
+
+    for b in brands_set:
+        temp=processed_data_set[processed_data_set['brand']==b] #this is a dataset with only two rows if the brand is present in both months
+        temp=np.array(temp['total_profit'])#array is required to do operations
+        if len(temp)==2:
+            diff_profit=((temp[1]-temp[0])/temp[0])*100
+        else:
+            continue   #this condition is if the brand is present in only one month
+        series_brand=pd.Series([b,diff_profit],index=['brand','loss_or_gain_profit'])
+        final_data_set=final_data_set.append([series_brand],ignore_index=True)
+
+        #return the 3 brand with biggest losses in earnings
+        final_data_set=final_data_set.sort_values(by='loss_or_gain_profit')
+        print(final_data_set(3))
+
+    return final_data_set
     
 def plot_average_price_brand(data_sets,columns_used=('event_time','brand','event_type','price','product_id'), chunk_size=1000000):
     '''
