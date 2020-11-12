@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 import progressbar
+pd.options.mode.chained_assignment = None
 
 
 # ------- Research Question 1
@@ -224,6 +225,8 @@ def average_time_between_view_cart_purchase(data_set):
 
 
 # -------- Research Question 2
+# TODO: testing is finished
+# TODO: Plot something nice
 def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_code', 'event_type'),
                                chunk_size=1000000):
     '''
@@ -264,14 +267,18 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
     working_data_set = pd.concat(chunk_list, ignore_index=True)
 
     # a plot showing the number of sold products per category
-    working_data_set.groupby('event_time')['category'].value_counts().head(20).plot.bar( \
-        figsize=(18, 7), \
-        title='Top Category')
+    final_data_set = working_data_set.groupby('event_time')['category'].value_counts()
+    final_data_set = final_data_set.groupby(level=0, group_keys=False).apply(
+        lambda x: x.sort_values(ascending=False).head(20))
+    final_data_set.plot.bar(figsize=(18, 7), title='Top Category')
     plt.xlabel('Category')
     plt.ylabel('Number of sold products')
     plt.show()
 
+    return final_data_set
 
+
+# TODO: Plot something nice
 def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'category_code', 'event_type', 'user_id'),
                                      chunk_size=1000000):
     '''
@@ -316,12 +323,15 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
 
     # A Plot showing the most visited subcategories
     plt.figure(figsize=(18, 7))
-    processed_data_set.groupby(level=0, group_keys=False).apply(
-        lambda x: x.sort_values(by=['count_sub_categories'], ascending=False).head(20)).plot.bar()
+    final_data_set = processed_data_set.groupby(level=0, group_keys=False).apply(
+                                lambda x: x.sort_values(by=['count_sub_categories'], ascending=False).head(20))
+    final_data_set.plot.bar()
     plt.title('Top Subcategory', fontsize=18)
     plt.xlabel('Subcategory')
     plt.ylabel('Number of visited product')
     plt.show()
+
+    return final_data_set
 
 
 def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category_code', 'product_id', 'user_id'),
@@ -367,9 +377,9 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
     working_data_set = pd.concat(chunk_list, ignore_index=True)
 
     # find the category
-    categorie = working_data_set['category'].unique()
-    # find mounths
-    mesi = working_data_set['event_time'].unique()
+    categories = working_data_set['category'].unique()
+    # find months
+    months = working_data_set['event_time'].unique()
 
     # create a new dataframe which conteins for each product the number of sold pz
     df = working_data_set.groupby(['event_time', 'category', 'product_id']).count()
@@ -377,14 +387,15 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
     df.rename(columns={'user_id': 'totale_pezzi'}, inplace=True)
     df.drop(columns=['event_type'], inplace=True)
 
-    # create a new dataframe which conteins mounth,category,product,number of sold pz
+    # create a new dataframe which contains month,category,product,number of sold pz
     new_df = pd.DataFrame(columns=df.columns)
 
-    for m in mesi:
-        for c in categorie:
+    for m in months:
+        for c in categories:
             temp = df[(df['category'] == c) & (df['event_time'] == m)].sort_values('totale_pezzi',
                                                                                    ascending=False).head(10)
             new_df = pd.concat([new_df, temp])
+
     return new_df
 
 
