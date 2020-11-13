@@ -226,8 +226,6 @@ def average_time_between_view_cart_purchase(data_set):
 
 
 # -------- Research Question 2
-# TODO: testing is finished
-# TODO: Plot something nice
 def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_code', 'event_type'),
                                chunk_size=1000000):
     '''
@@ -235,7 +233,11 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
     
     '''
     chunk_list = []
-
+    bar = progressbar.ProgressBar(maxval=415,
+                                  widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                           progressbar.Percentage()])
+    bar.start()
+    i = 0
     for data_set in data_sets:
         print(data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -246,11 +248,8 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-            print('Column names:', chunk.columns.tolist())
-            print('Length of chunk:', len(chunk))
-            print(chunk.head(5))
-            print('======================')
-
+            bar.update(i + 1)
+            i += 1
             # clean our dataset
             chunk.dropna(subset=['category_code'], inplace=True)
 
@@ -265,17 +264,16 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
 
             chunk_list.append(chunk_purchase)
 
+    bar.finish()
+    print('Finished pre-processing data')
+
     working_data_set = pd.concat(chunk_list, ignore_index=True)
 
     # a plot showing the number of sold products per category
     final_data_set = working_data_set.groupby('event_time')['category'].value_counts()
     final_data_set = final_data_set.groupby(level=0, group_keys=False).apply(
         lambda x: x.sort_values(ascending=False).head(20))
-    final_data_set.reset_index(name='Sold products per category')
-    # final_data_set.plot.bar(figsize=(18, 7), title='Top Category')
-    # plt.xlabel('Category')
-    # plt.ylabel('Number of sold products')
-    # plt.show()
+    final_data_set = final_data_set.reset_index(name='Sold products per category')
 
     g = sns.catplot(x="category",
                     y="Sold products per category",
@@ -297,6 +295,11 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
     processed_data_set = pd.DataFrame(columns=['event_time', 'subcategory_code', 'count_sub_categories'])
     processed_data_set.set_index(['event_time', 'subcategory_code'], inplace=True)
 
+    bar = progressbar.ProgressBar(maxval=415,
+                                  widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                           progressbar.Percentage()])
+    bar.start()
+    i = 0
     for data_set in data_sets:
         print(data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -307,11 +310,8 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-            print('Column names:', chunk.columns.tolist())
-            print('Length of chunk:', len(chunk))
-            print(chunk.head(5))
-            print('======================')
-
+            bar.update(i + 1)
+            i += 1
             # clean our dataset
             chunk = chunk[~chunk.category_code.isnull()]
 
@@ -330,17 +330,21 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
 
             processed_data_set = temp.add(processed_data_set, fill_value=0)
 
-    # A Plot showing the most visited subcategories
-    plt.figure(figsize=(18, 7))
-    final_data_set = processed_data_set.groupby(level=0, group_keys=False).apply(
-                                lambda x: x.sort_values(by=['count_sub_categories'], ascending=False).head(20))
-    final_data_set.plot.bar()
-    plt.title('Top Subcategory', fontsize=18)
-    plt.xlabel('Subcategory')
-    plt.ylabel('Number of visited product')
-    plt.show()
+    bar.finish()
+    print('Finished pre-processing data')
 
-    return final_data_set
+    # A Plot showing the most visited subcategories for month
+    processed_data_set = processed_data_set.groupby(level=0, group_keys=False).apply(
+        lambda x: x.sort_values(by=['count_sub_categories'], ascending=False).head(20))
+    processed_data_set.reset_index(inplace=True)
+    g = sns.catplot(y='count_sub_categories',
+                    x='subcategory_code',
+                    hue='event_time',
+                    data=processed_data_set,
+                    kind='bar')
+    g.set_xticklabels(rotation=90)
+
+    return processed_data_set
 
 
 def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category_code', 'product_id', 'user_id'),
@@ -351,6 +355,11 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
     '''
     chunk_list = []
 
+    bar = progressbar.ProgressBar(maxval=415,
+                                  widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                           progressbar.Percentage()])
+    bar.start()
+    i = 0
     for data_set in data_sets:
         print(data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -361,11 +370,8 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-            print('Column names:', chunk.columns.tolist())
-            print('Length of chunk:', len(chunk))
-            print(chunk.head(5))
-            print('======================')
-
+            bar.update(i + 1)
+            i += 1
             # clean our dataset
             chunk = chunk[~chunk.category_code.isnull()]
 
@@ -383,6 +389,8 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
 
             chunk_list.append(chunk_purchase)
 
+    bar.finish()
+    print('Finished pre-processing data')
     working_data_set = pd.concat(chunk_list, ignore_index=True)
 
     # find the category
@@ -390,7 +398,7 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
     # find months
     months = working_data_set['event_time'].unique()
 
-    # create a new dataframe which conteins for each product the number of sold pz
+    # create a new dataframe which contains for each product the number of sold products
     df = working_data_set.groupby(['event_time', 'category', 'product_id']).count()
     df.reset_index(inplace=True)
     df.rename(columns={'user_id': 'totale_pezzi'}, inplace=True)
@@ -439,7 +447,7 @@ def plot_average_price_brand_category(data_sets,
     # Define empty list in which we will append the chunked data sets
     chunk_list = []
 
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
@@ -515,7 +523,7 @@ def category_brand_highest_price(data_sets,
 
     # Define empty list in which we will append the chunked data sets
     chunk_list = []
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
@@ -578,8 +586,11 @@ def plot_profit_for_brand(data_sets, brand, columns_used=('event_time', 'brand',
     '''
     This function return the plot of the profit of a brand passed in input
     '''
-    chunk_list = []
 
+    processed_data_set = pd.DataFrame(columns=['event_time', 'brand', 'total_profit'])
+    processed_data_set.set_index(['event_time', 'brand'], inplace=True)
+
+    #brands_set = set()
     for data_set in data_sets:
         print(data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -590,36 +601,77 @@ def plot_profit_for_brand(data_sets, brand, columns_used=('event_time', 'brand',
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-            print('Column names:', chunk.columns.tolist())
-            print('Length of chunk:', len(chunk))
-            print(chunk.head(5))
-            print('======================')
 
             # filter the sold product
             chunk_purchase = chunk[chunk.event_type == 'purchase']
 
-            # filter the product sold by the brand in input
-            chunk_purchase_brand = chunk_purchase[chunk_purchase['brand'] == brand]
+            # clean the column brand
+            chunk_purchase.dropna(subset=['brand'], inplace=True)
+
+            # find all brands
+            # brands_array = chunk_purchase['brand'].unique()
+            # for b in brands_array:
+            #     brands_set.add(b)
 
             # Convert event time into month
-            chunk_purchase_brand['event_time'] = chunk_purchase_brand.event_time.dt.month
+            chunk_purchase['event_time'] = chunk_purchase.event_time.dt.month
 
             # remove the columns we don't need
-            chunk_purchase_brand.drop(columns=['brand', 'event_type'], inplace=True)
+            chunk_purchase.drop(columns=['event_type'], inplace=True)
 
-            chunk_list.append(chunk_purchase_brand)
+            # calculate the profit for each brand
+            chunk_purchase = chunk_purchase.groupby(['event_time', 'brand']).price.sum().reset_index(
+                name='total_profit').set_index(['event_time', 'brand'])
 
-    working_data_set = pd.concat(chunk_list, ignore_index=True)
+            processed_data_set = chunk_purchase.add(processed_data_set, fill_value=0)
 
-    # plot the profit for each mounth
-    # we use the yscale=log to be able to visualize the profit in a better way due to its size is of the order od 10^6
-    plt.figure(figsize=(6, 6))
-    working_data_set.groupby('event_time').price.sum().plot.bar()
-    plt.yscale('log')
+    # to be able to do some filter we have to restore the columns
+    processed_data_set.reset_index(inplace=True)
+
+    # Compute the unique brands
+    brands_set = processed_data_set.brand.unique().tolist()
+
+    # plot the profit for month for the brand given in input
+    g = processed_data_set[processed_data_set['brand'] == brand]
+    g.plot(x='event_time', y='total_profit', kind='bar')
     plt.show()
 
+    # Data set in which we will store all relevant information for final analysis
+    final_data_set = pd.DataFrame(columns=['brand', 'Max Loss between months', 'Months of loss'])
 
-def plot_average_price_brand(data_sets, columns_used=('event_time', 'brand', 'event_type', 'price', 'product_id'),
+    dict_temp = {'10': 'October',
+                 '11': 'November',
+                 '12': 'December',
+                 '1': 'January',
+                 '2': 'February',
+                 '3': 'March',
+                 '4': 'April'}
+
+    # We will loop over all brands computing its max loss values
+    for b in brands_set:
+        # Get the brand with its profit per month
+        temp = processed_data_set[processed_data_set[
+                                      'brand'] == b]
+        profits = np.array(temp['total_profit'])
+        months = np.array(temp['event_time'])
+        if len(temp) == 1:
+            continue
+        else:
+            # If brand appears in several months
+            max_loss = np.min(np.diff(profits))
+            months_of_loss_temp = np.argmin(np.diff(profits))
+            months_of_loss = dict_temp[str(months[months_of_loss_temp])] + ' to ' + dict_temp[str(months[months_of_loss_temp + 1])]
+
+        final_data_set = final_data_set.append(pd.Series([b, max_loss, months_of_loss],
+                                               index=final_data_set.columns), ignore_index=True)
+
+    # return the 3 brand with biggest losses in earnings
+    final_data_set = final_data_set.sort_values(by='Max Loss between months')
+
+    return final_data_set
+
+
+def plot_average_price_brand(data_sets, columns_used=('event_time', 'brand', 'price', 'product_id'),
                              chunk_size=1000000):
     '''
     This function return the plot of the average price of products of different brands
@@ -636,29 +688,26 @@ def plot_average_price_brand(data_sets, columns_used=('event_time', 'brand', 'ev
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-            print('Column names:', chunk.columns.tolist())
-            print('Length of chunk:', len(chunk))
-            print(chunk.head(5))
-            print('======================')
 
             # consider the product view because these are the ones which are offered from the brand
-            chunk_view = chunk[chunk['event_type'] == 'view']
+            # chunk_view = chunk[chunk['event_type'] == 'view']
 
             # remove the rows which contain a null value in brand
-            chunk_view.dropna(subset=['brand'], inplace=True)
+            chunk.dropna(subset=['brand'], inplace=True)
 
             # each product have to be considered only one time so we remove the duplicates
-            chunk_view = chunk_view.drop_duplicates(subset=['product_id', 'price', 'brand'])
+            chunk_view = chunk.drop_duplicates(subset=['product_id', 'price', 'brand'])
             # remove the columns we don't need
-            chunk_view.drop(columns=['product_id', 'event_type'], inplace=True)
+            chunk_view.drop(columns=['product_id'], inplace=True)
 
             chunk_list.append(chunk_view)
 
     working_data_set = pd.concat(chunk_list, ignore_index=True)
 
     plt.figure(figsize=(18, 10))
-    top_ten = working_data_set.groupby('brand').price.mean().sort_values(ascending=False).head(10)
-    last_ten = working_data_set.groupby('brand').price.mean().sort_values(ascending=False).tail(10)
+    grouped_data_set = working_data_set.groupby('brand').price.mean().sort_values(ascending=False)
+    top_ten = grouped_data_set.head(10)
+    last_ten = grouped_data_set.tail(10)
     final_brand = pd.concat((top_ten, last_ten))
     final_brand.plot.bar()
     plt.title('differences between average price of brand')
@@ -687,10 +736,6 @@ def plot_hourly_average_visitors(data_sets, day, columns_used=('event_time', 'ev
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-            print('Column names:', chunk.columns.tolist())
-            print('Length of chunk:', len(chunk))
-            print(chunk.head(5))
-            print('======================')
 
             # filter the event visits
             chunk_view = chunk[chunk.event_type == 'view']
@@ -742,7 +787,7 @@ def conversion_rate(data_sets,
                       list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
     assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
 
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
@@ -792,7 +837,7 @@ def conversion_rate_per_category(data_sets,
                       list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
     assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
 
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
@@ -882,7 +927,7 @@ def pareto_proof_online_shop(data_sets,
                       list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
     assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
 
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
