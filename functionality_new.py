@@ -233,7 +233,11 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
     
     '''
     chunk_list = []
-
+    bar = progressbar.ProgressBar(maxval=415,
+                                  widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                           progressbar.Percentage()])
+    bar.start()
+    i = 0
     for data_set in data_sets:
         print(data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -244,7 +248,8 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-
+            bar.update(i + 1)
+            i += 1
             # clean our dataset
             chunk.dropna(subset=['category_code'], inplace=True)
 
@@ -259,13 +264,16 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
 
             chunk_list.append(chunk_purchase)
 
+    bar.finish()
+    print('Finished pre-processing data')
+
     working_data_set = pd.concat(chunk_list, ignore_index=True)
 
     # a plot showing the number of sold products per category
     final_data_set = working_data_set.groupby('event_time')['category'].value_counts()
     final_data_set = final_data_set.groupby(level=0, group_keys=False).apply(
         lambda x: x.sort_values(ascending=False).head(20))
-    final_data_set.reset_index(name='Sold products per category')
+    final_data_set = final_data_set.reset_index(name='Sold products per category')
 
     g = sns.catplot(x="category",
                     y="Sold products per category",
@@ -287,6 +295,11 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
     processed_data_set = pd.DataFrame(columns=['event_time', 'subcategory_code', 'count_sub_categories'])
     processed_data_set.set_index(['event_time', 'subcategory_code'], inplace=True)
 
+    bar = progressbar.ProgressBar(maxval=415,
+                                  widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                           progressbar.Percentage()])
+    bar.start()
+    i = 0
     for data_set in data_sets:
         print(data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -297,7 +310,8 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-
+            bar.update(i + 1)
+            i += 1
             # clean our dataset
             chunk = chunk[~chunk.category_code.isnull()]
 
@@ -315,6 +329,9 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
                 name='count_sub_categories').set_index(['event_time', 'subcategory_code'])
 
             processed_data_set = temp.add(processed_data_set, fill_value=0)
+
+    bar.finish()
+    print('Finished pre-processing data')
 
     # A Plot showing the most visited subcategories for month
     processed_data_set = processed_data_set.groupby(level=0, group_keys=False).apply(
@@ -338,6 +355,11 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
     '''
     chunk_list = []
 
+    bar = progressbar.ProgressBar(maxval=415,
+                                  widgets=[progressbar.Bar('=', '[', ']'), ' ',
+                                           progressbar.Percentage()])
+    bar.start()
+    i = 0
     for data_set in data_sets:
         print(data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -348,7 +370,8 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-
+            bar.update(i + 1)
+            i += 1
             # clean our dataset
             chunk = chunk[~chunk.category_code.isnull()]
 
@@ -366,6 +389,8 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
 
             chunk_list.append(chunk_purchase)
 
+    bar.finish()
+    print('Finished pre-processing data')
     working_data_set = pd.concat(chunk_list, ignore_index=True)
 
     # find the category
@@ -422,7 +447,7 @@ def plot_average_price_brand_category(data_sets,
     # Define empty list in which we will append the chunked data sets
     chunk_list = []
 
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
@@ -498,7 +523,7 @@ def category_brand_highest_price(data_sets,
 
     # Define empty list in which we will append the chunked data sets
     chunk_list = []
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
@@ -762,7 +787,7 @@ def conversion_rate(data_sets,
                       list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
     assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
 
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
@@ -812,7 +837,7 @@ def conversion_rate_per_category(data_sets,
                       list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
     assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
 
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
@@ -902,7 +927,7 @@ def pareto_proof_online_shop(data_sets,
                       list), 'Data sets need to be provided as a list os strings with the path of the given data sets'
     assert isinstance(data_sets[0], str), 'Elements of list need to be a string'
 
-    bar = progressbar.ProgressBar(maxval=111,
+    bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
     bar.start()
