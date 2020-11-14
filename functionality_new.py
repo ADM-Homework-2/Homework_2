@@ -236,6 +236,9 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
     bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
+
+    month_dict = {'Oct': 10, 'Nov': 11, 'Dec': 12, 'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4}
+
     bar.start()
     i = 0
     for data_set in data_sets:
@@ -244,8 +247,6 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
                                  delimiter=None, header='infer',
                                  usecols=columns_used,
                                  encoding="ISO-8859-1",
-                                 parse_dates=['event_time'],
-                                 date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
             bar.update(i + 1)
@@ -260,7 +261,7 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
             chunk_purchase['category'] = chunk_purchase['category_code'].apply(lambda x: x.split('.')[0])
 
             # Convert event time into month
-            chunk_purchase['event_time'] = chunk_purchase.event_time.dt.month
+            chunk_purchase['event_time'] = month_dict[data_set[10:13]]
 
             chunk_list.append(chunk_purchase)
 
@@ -285,7 +286,6 @@ def plot_sold_product_category(data_sets, columns_used=('event_time', 'category_
     return final_data_set
 
 
-# TODO: Plot something nice
 def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'category_code', 'event_type', 'user_id'),
                                      chunk_size=1000000):
     '''
@@ -298,6 +298,9 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
     bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
+
+    month_dict = {'Oct': 10, 'Nov': 11, 'Dec': 12, 'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4}
+
     bar.start()
     i = 0
     for data_set in data_sets:
@@ -306,8 +309,6 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
                                  delimiter=None, header='infer',
                                  usecols=columns_used,
                                  encoding="ISO-8859-1",
-                                 parse_dates=['event_time'],
-                                 date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
             bar.update(i + 1)
@@ -323,10 +324,10 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
                 lambda x: re.findall(r'\.(.*)', x)[0] if len(x.split('.')) != 1 else x)
 
             # Convert event time into month
-            chunk_view['event_time'] = chunk_view.event_time.dt.month
+            chunk_view['month'] = month_dict[data_set[10:13]]
 
-            temp = chunk_view.groupby(['event_time', 'subcategory_code']).user_id.count().reset_index(
-                name='count_sub_categories').set_index(['event_time', 'subcategory_code'])
+            temp = chunk_view.groupby(['month', 'subcategory_code']).user_id.count().reset_index(
+                name='count_sub_categories').set_index(['month', 'subcategory_code'])
 
             processed_data_set = temp.add(processed_data_set, fill_value=0)
 
@@ -337,9 +338,10 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
     processed_data_set = processed_data_set.groupby(level=0, group_keys=False).apply(
         lambda x: x.sort_values(by=['count_sub_categories'], ascending=False).head(20))
     processed_data_set.reset_index(inplace=True)
+
     g = sns.catplot(y='count_sub_categories',
                     x='subcategory_code',
-                    hue='event_time',
+                    hue='month',
                     data=processed_data_set,
                     kind='bar')
     g.set_xticklabels(rotation=90)
@@ -358,6 +360,9 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
     bar = progressbar.ProgressBar(maxval=415,
                                   widgets=[progressbar.Bar('=', '[', ']'), ' ',
                                            progressbar.Percentage()])
+
+    month_dict = {'Oct': 10, 'Nov': 11, 'Dec': 12, 'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4}
+
     bar.start()
     i = 0
     for data_set in data_sets:
@@ -366,8 +371,6 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
                                  delimiter=None, header='infer',
                                  usecols=columns_used,
                                  encoding="ISO-8859-1",
-                                 parse_dates=['event_time'],
-                                 date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
             bar.update(i + 1)
@@ -385,7 +388,8 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
             chunk_purchase.drop(columns=['category_code'], inplace=True)
 
             # Convert event time into month
-            chunk_purchase['event_time'] = chunk_purchase.event_time.dt.month
+            #chunk_purchase['event_time'] = chunk_purchase.event_time.dt.month
+            chunk_purchase['event_time'] = month_dict[data_set[10:13]]
 
             chunk_list.append(chunk_purchase)
 
@@ -634,6 +638,7 @@ def plot_profit_for_brand(data_sets, brand, columns_used=('event_time', 'brand',
     # plot the profit for month for the brand given in input
     g = processed_data_set[processed_data_set['brand'] == brand]
     g.plot(x='event_time', y='total_profit', kind='bar')
+    g.title(brand)
     plt.show()
 
     # Data set in which we will store all relevant information for final analysis
@@ -746,7 +751,7 @@ def plot_hourly_average_visitors(data_sets, day, columns_used=('event_time', 'ev
             chunk_view['day'] = chunk_view.event_time.dt.dayofweek
             chunk_view = chunk_view[chunk_view['day'] == d[day]]
 
-            chunk_view['month'] = chunk_view.event_time.dt.month
+            chunk_view['month'] = data_set[10:13]
             chunk_view['hour'] = chunk_view.event_time.dt.hour
             chunk_view['week'] = chunk_view.event_time.dt.week
 
