@@ -4,12 +4,15 @@ import matplotlib.pyplot as plt
 import re
 import progressbar
 import seaborn as sns
+
 pd.options.mode.chained_assignment = None
+import warnings
+
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 # ------- Research Question 1
 
-# 1.a.
 
 def customer_journey_funnel(data_set):
     """
@@ -47,70 +50,93 @@ def user_session_user_id(data_set):
     return users_sessions_with_multiple_user_ids_data_set
 
 
-def events_per_session(data_set):
+# 1.a.
+def events_per_session(data_sets, chunk_size=1000000):
     """
     Review what the most performed event is by average for each session
 
-    :param data_set:
+    :param data_sets:
     :return: Plot with averages
     """
 
-    # Given that there are some unique session_ids with different user_ids, we will groupby user session and user id
-    session_df = data_set.user_session.nunique()
-    session_number = len(session_df)
-    event_df = data_set.groupby(['event_type'])['event_time'].count().reset_index(name="count")
-    event_number = event_df['count']
-    average_event = event_number / session_number
+    lst_session_number = []
+    lst_chunks = []
+    for dataset in data_sets:
+        print(dataset)
+        for chunk in pd.read_csv(dataset, chunksize=chunk_size):
+            chunk_df = chunk.groupby('event_type')['event_time'].count().reset_index(name='count')
+            session_number = chunk.user_session.nunique()
+            lst_chunks.append(chunk_df)
+            lst_session_number.append(session_number)
+
+    concat_chunks = pd.concat(lst_chunks)
+    final_df = concat_chunks.groupby(['event_type']).sum().reset_index()
+    common_sn = sum(lst_session_number)
+    final_df['average_event'] = final_df['count'] / common_sn
 
     # Plot average events done per session
     plt.figure(figsize=(12, 7))
-    plt.hist(event_df['event_type'], weights=average_event)
+    plt.bar(final_df['event_type'], final_df['average_event'])
     plt.title("Average number of events within a session", fontsize=25)
     plt.yticks(fontsize=15)
     plt.xticks(fontsize=20)
     plt.grid(alpha=0.8)
 
+    return final_df
+
 
 # 1.b.
-
-# TODO: review the case in which for the same user and product we have view, view, view, cart, view, cart
-def average_views_before_cart(data_set):
+def average_views_before_cart(data_sets, chunk_size=1000000):
     """
     Compute the average times a user views a product before adding it to the cart
 
-    :param data_set:
+    :param data_sets:
     :return: Integer with amount of views
     """
 
-    # Since we are looking for the number of times before putting item into the cart we will only be interested in those
-    # users and products for which the product was finally put into the cart
-    cart_df = data_set[data_set['event_type'] == 'cart']
+    cart_chunk = pd.DataFrame()
+    for dataset in data_sets:
+        print(dataset)
+        for chunk in pd.read_csv(dataset, chunksize=chunk_size):
+            chunk = chunk[chunk['event_type'] == 'cart']
+            chunk = chunk.drop_duplicates(subset=['product_id', 'user_id'], keep='first')
+            cart_chunk = pd.concat([cart_chunk, chunk])
+            cart_chunk = cart_chunk.drop_duplicates(subset=['product_id', 'user_id'], keep='first')
 
-    # Merge by product id and user id, including the moment in the product was put in the cart
-    cart_and_view_df = data_set[['event_time', 'event_type', 'user_id', 'product_id']].merge(cart_df[['event_time',
-                                                                                                      'user_id',
-                                                                                                      'product_id']],
-                                                                                             how='right',
-                                                                                             on=['product_id',
-                                                                                                 'user_id'],
-                                                                                             suffixes=('_view',
-                                                                                                       '_cart'))
+    cart_chunk = cart_chunk[['event_time', 'event_type', 'product_id', 'user_id']]
+    cart_chunk['count'] = 0
 
-    # Keep only events for which the cart event came before the view event
-    view_before_cart = cart_and_view_df[(cart_and_view_df['event_time_view'] < cart_and_view_df['event_time_cart']) & (
-            cart_and_view_df['event_type'] == 'view')]
+    for dataset in data_sets:
+        print(dataset)
+        for df in pd.read_csv(dataset, chunksize=chunk_size):
+            df = df[['event_time', 'event_type', 'product_id', 'user_id']]
+            df['count'] = 0
 
-    # Count the number of views per user and per product and take the average over these values
-    average_num_view = view_before_cart.groupby(
-        ['user_id', 'product_id'])['event_time_view'].count().mean()
+            views_df = df.merge(cart_chunk, on=['product_id', 'user_id'], how='left')
+            views_df = views_df[
+                (views_df['event_time_x'] < views_df['event_time_y']) & (views_df['event_type_x'] == 'view')]
+            views_df = views_df.groupby(['product_id', 'user_id'])['event_time_x'].count().reset_index(name='count')
+            sum_chunk = pd.concat([views_df, cart_chunk]).groupby(['product_id', 'user_id']).sum().reset_index()
+            cart_chunk = sum_chunk.merge(cart_chunk, on=['product_id', 'user_id'], how='left')
+            cart_chunk.rename(columns={'count_x': 'count'}, inplace=True)
+            cart_chunk.drop('count_y', inplace=True, axis=1)
 
-    return average_num_view
+    plt.figure(figsize=(16, 7))
+    plt.hist(cart_chunk['count'], bins=np.arange(0, 25, 1), width=0.8)
+    plt.xticks(np.arange(0, 25, 1))
+    plt.title("Histogram of number of views before cart", fontsize=25)
+    plt.xlabel("Number of Views", fontsize=20)
+    plt.ylabel("Frequency", fontsize=20)
+    plt.grid(alpha=0.6)
+    plt.show()
+
+    return cart_chunk
 
 
 # 1.c.
 # Given that the funnel does not apply in our online shop, we will consider the the probability as:
 # prob = purchase, given that it was previously put in the cart/total products put in the cart
-def probability_purchase_given_cart(data_set):
+def probability_purchase_given_cart(data_sets, chunk_size=1000000):
     """
     Compute the probability a product is purchased given it is sent to the cart
 
@@ -118,25 +144,25 @@ def probability_purchase_given_cart(data_set):
     :return: float
     """
 
-    # Store all cart events
-    cart_df = data_set[data_set['event_type'] == 'cart']
+    purchase_chunk = pd.DataFrame()
+    for dataset in data_sets:
+        for chunk in pd.read_csv(dataset, chunksize=chunk_size):
+            chunk = chunk[chunk['event_type'] == 'purchase']
+            purchase_chunk = pd.concat([purchase_chunk, chunk])
 
-    # Join with complete data set. This way we have a data set with only the users and products that have ever been
-    # stored in the cart, including the time in which they were put in the cart and the time in which any other event
-    # occured (we will be interested in the purchase event time)
-    cart_and_purchase = data_set[['event_time', 'event_type', 'user_id', 'product_id']].merge(
-        cart_df[['event_time', 'user_id', 'product_id']], how='right',
-        on=['product_id', 'user_id'], suffixes=('_purchase', '_cart'))
+    bought = 0
+    not_bought = 0
+    for dataset in data_sets:
+        for df in pd.read_csv(dataset, chunksize=chunk_size):
+            df = df[df['event_type'] == 'cart']
+            df = df.merge(purchase_chunk, on=['product_id',
+                                              'category_id', 'category_code',
+                                              'brand', 'price', 'user_id'], how='left')
+            not_bought += df['event_time_y'].isna().sum()
+            df = df[df['event_time_y'] > df['event_time_x']]
+            bought += df.values.sum()
 
-    # We are only interested in events which finally ended up in a purchase, and only in cases for which there was a
-    # prior cart action
-    cart_before_purchase = cart_and_purchase[
-        (cart_and_purchase['event_time_cart'] < cart_and_purchase['event_time_purchase']) & (
-                cart_and_purchase['event_type'] == 'purchase')]
-
-    prob_purchase = len(cart_before_purchase) / len(cart_df)
-
-    return prob_purchase
+    return bought / (bought + not_bought)
 
 
 # 1.d.
@@ -324,10 +350,10 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
                 lambda x: re.findall(r'\.(.*)', x)[0] if len(x.split('.')) != 1 else x)
 
             # Convert event time into month
-            chunk_view['month'] = month_dict[data_set[10:13]]
+            chunk_view['event_time'] = month_dict[data_set[10:13]]
 
-            temp = chunk_view.groupby(['month', 'subcategory_code']).user_id.count().reset_index(
-                name='count_sub_categories').set_index(['month', 'subcategory_code'])
+            temp = chunk_view.groupby(['event_time', 'subcategory_code']).user_id.count().reset_index(
+                name='count_sub_categories').set_index(['event_time', 'subcategory_code'])
 
             processed_data_set = temp.add(processed_data_set, fill_value=0)
 
@@ -341,7 +367,7 @@ def plot_visited_product_subcategory(data_sets, columns_used=('event_time', 'cat
 
     g = sns.catplot(y='count_sub_categories',
                     x='subcategory_code',
-                    hue='month',
+                    hue='event_time',
                     data=processed_data_set,
                     kind='bar')
     g.set_xticklabels(rotation=90)
@@ -388,7 +414,6 @@ def ten_most_sold(data_sets, columns_used=('event_time', 'event_type', 'category
             chunk_purchase.drop(columns=['category_code'], inplace=True)
 
             # Convert event time into month
-            #chunk_purchase['event_time'] = chunk_purchase.event_time.dt.month
             chunk_purchase['event_time'] = month_dict[data_set[10:13]]
 
             chunk_list.append(chunk_purchase)
@@ -594,7 +619,7 @@ def plot_profit_for_brand(data_sets, brand, columns_used=('event_time', 'brand',
     processed_data_set = pd.DataFrame(columns=['event_time', 'brand', 'total_profit'])
     processed_data_set.set_index(['event_time', 'brand'], inplace=True)
 
-    #brands_set = set()
+    # brands_set = set()
     for data_set in data_sets:
         print(data_set)
         month_data = pd.read_csv(data_set, sep=',',
@@ -605,7 +630,6 @@ def plot_profit_for_brand(data_sets, brand, columns_used=('event_time', 'brand',
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-
             # filter the sold product
             chunk_purchase = chunk[chunk.event_type == 'purchase']
 
@@ -665,10 +689,11 @@ def plot_profit_for_brand(data_sets, brand, columns_used=('event_time', 'brand',
             # If brand appears in several months
             max_loss = np.min(np.diff(profits))
             months_of_loss_temp = np.argmin(np.diff(profits))
-            months_of_loss = dict_temp[str(months[months_of_loss_temp])] + ' to ' + dict_temp[str(months[months_of_loss_temp + 1])]
+            months_of_loss = dict_temp[str(months[months_of_loss_temp])] + ' to ' + dict_temp[
+                str(months[months_of_loss_temp + 1])]
 
         final_data_set = final_data_set.append(pd.Series([b, max_loss, months_of_loss],
-                                               index=final_data_set.columns), ignore_index=True)
+                                                         index=final_data_set.columns), ignore_index=True)
 
     # return the 3 brand with biggest losses in earnings
     final_data_set = final_data_set.sort_values(by='Max Loss between months')
@@ -693,7 +718,6 @@ def plot_average_price_brand(data_sets, columns_used=('event_time', 'brand', 'pr
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-
             # consider the product view because these are the ones which are offered from the brand
             # chunk_view = chunk[chunk['event_type'] == 'view']
 
@@ -741,7 +765,6 @@ def plot_hourly_average_visitors(data_sets, day, columns_used=('event_time', 'ev
                                  date_parser=pd.to_datetime,
                                  chunksize=chunk_size)
         for chunk in month_data:
-
             # filter the event visits
             chunk_view = chunk[chunk.event_type == 'view']
 
