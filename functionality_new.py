@@ -250,8 +250,7 @@ def average_time_between_view_cart_purchase(data_sets, chunk_size=1000000):
 
     plt.figure(figsize=(16, 7))
     plt.hist(before_purchase_df.astype('timedelta64[m]').to_list(), bins=np.linspace(0, 80000, 100))
-    plt.ylim(top=30000)
-    plt.xticks(np.arange(0, 80000, 5000))
+    #plt.xticks(np.arange(0, 80000, 5000))
     plt.title("Histogram of time between first view and purchase", fontsize=25)
     plt.xlabel("Time in minutes", fontsize=20)
     plt.ylabel("Frequency", fontsize=20)
