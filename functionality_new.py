@@ -172,7 +172,7 @@ def probability_purchase_given_cart(data_sets, chunk_size=1000000):
 # therefore be how to compute the moment in which the session ended. This will be done by looking at the time in which
 # the last view happened
 
-def average_time_remove_from_cart(data_set):
+def average_time_remove_from_cart(data_sets, chunk_size=1000000):
     """
     Compute the average time an item is in the cart (based on the first moment the product is put in the cart until the
     last view of a specific session)
@@ -181,34 +181,49 @@ def average_time_remove_from_cart(data_set):
     :return:
     """
 
-    session_product_with_multiple_events = data_set.groupby(
-        ['user_session', 'product_id']).event_type.nunique().reset_index(name='unique_event_type')
-    session_product_with_2_different_events = session_product_with_multiple_events[
-        session_product_with_multiple_events.unique_event_type == 2]
-    # Make a dataframe with all user_sessions and products with 2 events
-    merge_temp = session_product_with_2_different_events.merge(data_set, on=['user_session', 'product_id'])
-    # From these users, remove the purchases
-    merge_temp = merge_temp[merge_temp.event_type != 'purchase']
-    session_product_with_view_and_cart = merge_temp.groupby(
-        ['user_session', 'product_id']).event_type.nunique().reset_index(name='unique_event_type')
-    session_product_with_view_and_cart = session_product_with_view_and_cart[
-        session_product_with_view_and_cart.unique_event_type == 2]
-    session_product_with_view_and_cart_data_set = session_product_with_view_and_cart.merge(data_set,
-                                                                                           on=['user_session',
-                                                                                               'product_id'])
-    product_in_cart_df = session_product_with_view_and_cart_data_set[
-        session_product_with_view_and_cart_data_set.event_type == 'cart'].groupby(
-        ['user_session', 'product_id']).first()
-    product_removed_from_cart_df = session_product_with_view_and_cart_data_set[
-        session_product_with_view_and_cart_data_set.event_type == 'view'].groupby(['user_session', 'product_id']).last()
+    purchase_chunk = pd.DataFrame()
+    for dataset in data_sets:
+        for chunk in pd.read_csv(dataset, chunksize=chunk_size):
+            chunk = chunk[chunk['event_type'] == 'purchase']
+            purchase_chunk = pd.concat([purchase_chunk, chunk])
 
-    product_in_cart = pd.to_datetime(product_in_cart_df['event_time'])
-    product_removed_from_cart = pd.to_datetime(product_removed_from_cart_df['event_time'])
+    cart_not_purchase = pd.DataFrame()
+    for dataset in data_sets:
+        for chunk in pd.read_csv(dataset, chunksize=chunk_size):
+            chunk = chunk[chunk['event_type'] == 'cart']
+            chunk = chunk.merge(purchase_chunk, on=['product_id', 'category_id',
+                                                    'category_code', 'brand',
+                                                    'price', 'user_id'], how='left')
+            chunk = chunk[chunk['event_type_y'].isnull()]
+            chunk = chunk[['event_time_x', 'event_type_x',
+                           'product_id', 'category_id',
+                           'category_code', 'brand',
+                           'price', 'user_id']]
+            cart_not_purchase = pd.concat([cart_not_purchase, chunk])
 
-    time_in_cart = product_removed_from_cart - product_in_cart
-    average_time_in_cart = time_in_cart.mean()
+    cart_not_purchase = cart_not_purchase.rename(columns={'event_time_x': 'event_time',
+                                                          'event_type_x': 'event_type'})
 
-    return average_time_in_cart
+    cart_not_purchase_view = pd.DataFrame()
+    for dataset in data_sets:
+        for chunk in pd.read_csv(dataset, chunksize=chunk_size):
+            chunk = chunk[chunk['event_type'] == 'view'].drop_duplicates(subset=['product_id', 'user_id'], keep='last')
+            chunk = chunk.merge(cart_not_purchase, on=['product_id', 'category_id',
+                                                       'category_code', 'brand',
+                                                       'price', 'user_id'], how='left')
+            chunk = chunk[~chunk['event_type_y'].isnull()]
+            chunk = chunk[chunk['event_time_x'] > chunk['event_time_y']]
+            cart_not_purchase_view = pd.concat([cart_not_purchase_view, chunk])
+
+            cart_not_purchase_view = cart_not_purchase_view.drop_duplicates(subset=['event_type_x',
+                                                                                    'product_id',
+                                                                                    'user_id'], keep='first')
+
+    cart_time = pd.to_datetime(cart_not_purchase_view['event_time_y'])
+    discard_time = pd.to_datetime(cart_not_purchase_view['event_time_x'])
+    time_before_discard = (discard_time - cart_time)
+
+    return time_before_discard.mean()
 
 
 # 1.e.
