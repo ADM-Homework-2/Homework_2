@@ -59,16 +59,22 @@ def events_per_session(data_sets, chunk_size=1000000):
     :return: Plot with averages
     """
 
+    # to get the average events per each session we iterate through all datasets and get the number of sessions
     lst_session_number = []
+    # also while iterating we count number of occurence of each event
     lst_chunks = []
     for dataset in data_sets:
         print(dataset)
         for chunk in pd.read_csv(dataset, chunksize=chunk_size):
+            # we group by event type and count each events number
             chunk_df = chunk.groupby('event_type')['event_time'].count().reset_index(name='count')
             session_number = chunk.user_session.nunique()
             lst_chunks.append(chunk_df)
             lst_session_number.append(session_number)
 
+    # in concat chunks we have all chunks' dataframes which contain number of events for each type
+    # then we again group by event and sum all the counts and get whole number of each event
+    # to find the average over all sessions we divide numbers by number of session
     concat_chunks = pd.concat(lst_chunks)
     final_df = concat_chunks.groupby(['event_type']).sum().reset_index()
     common_sn = sum(lst_session_number)
@@ -94,6 +100,9 @@ def average_views_before_cart(data_sets, chunk_size=1000000):
     :return: Integer with amount of views
     """
 
+    # in the first iteration we find all the 'carts'
+    # then we filter them out based on product_id and user_id duplication
+    # choosing the first occurences meaning that we choose first time user add certain object to cart
     cart_chunk = pd.DataFrame()
     for dataset in data_sets:
         print(dataset)
@@ -103,9 +112,13 @@ def average_views_before_cart(data_sets, chunk_size=1000000):
             cart_chunk = pd.concat([cart_chunk, chunk])
             cart_chunk = cart_chunk.drop_duplicates(subset=['product_id', 'user_id'], keep='first')
 
+    # to loosen up memory we choose only necessary columns from whole cart dataframe
     cart_chunk = cart_chunk[['event_time', 'event_type', 'product_id', 'user_id']]
     cart_chunk['count'] = 0
 
+    # in the second iteration we merge to chunks the cart dataframe
+    # to find those rows where event is view and which happened before cart
+    # then we count those views and find how many times in average person views item before adding it to cart
     for dataset in data_sets:
         print(dataset)
         for df in pd.read_csv(dataset, chunksize=chunk_size):
@@ -130,7 +143,7 @@ def average_views_before_cart(data_sets, chunk_size=1000000):
     plt.grid(alpha=0.6)
     plt.show()
 
-    return cart_chunk
+    return cart_chunk['count'].mean()
 
 
 # 1.c.
@@ -144,12 +157,19 @@ def probability_purchase_given_cart(data_sets, chunk_size=1000000):
     :return: float
     """
 
+    # in the first iteration we find those rows that contain event of purchase
+    # and create whole dataframe of all purchase rows
     purchase_chunk = pd.DataFrame()
     for dataset in data_sets:
         for chunk in pd.read_csv(dataset, chunksize=chunk_size):
             chunk = chunk[chunk['event_type'] == 'purchase']
             purchase_chunk = pd.concat([purchase_chunk, chunk])
 
+    # in the second iteration we iterate and chose those
+    # rows that contain cart as event and count those carts which were eventually purchased
+    # and those which were not purchased
+    # from this two numbers we found the probability of an item to be bought
+    # once it has been added to cart
     bought = 0
     not_bought = 0
     for dataset in data_sets:
@@ -166,11 +186,9 @@ def probability_purchase_given_cart(data_sets, chunk_size=1000000):
 
 
 # 1.d.
-# We don't have the event removefromcart. For this reason we will have to find some kind of approximation for the
-# removefromcart event. We will assume that the user_session does not have memory, therefore everything that was in the
-# cart once the session was ended and not bought will be removed from the cart. The next logical question would
-# therefore be how to compute the moment in which the session ended. This will be done by looking at the time in which
-# the last view happened
+# We choose all purchased products first. Then iterate through all cart events and choose those that were not purchased.
+# We then iterated through view events and take those that occurred after cart (and which were not purchased) making
+# the assumption that it is a discard activity
 
 def average_time_remove_from_cart(data_sets, chunk_size=1000000):
     """
@@ -181,12 +199,15 @@ def average_time_remove_from_cart(data_sets, chunk_size=1000000):
     :return:
     """
 
+    # in the first iteration we create dataframe with all rows of purchase event
     purchase_chunk = pd.DataFrame()
     for dataset in data_sets:
         for chunk in pd.read_csv(dataset, chunksize=chunk_size):
             chunk = chunk[chunk['event_type'] == 'purchase']
             purchase_chunk = pd.concat([purchase_chunk, chunk])
 
+    # in the second iteration we chose those cart event which were not eventually bought
+    # and created its dataframe
     cart_not_purchase = pd.DataFrame()
     for dataset in data_sets:
         for chunk in pd.read_csv(dataset, chunksize=chunk_size):
@@ -201,9 +222,12 @@ def average_time_remove_from_cart(data_sets, chunk_size=1000000):
                            'price', 'user_id']]
             cart_not_purchase = pd.concat([cart_not_purchase, chunk])
 
+    # renamed columns which comes changed after merge
     cart_not_purchase = cart_not_purchase.rename(columns={'event_time_x': 'event_time',
                                                           'event_type_x': 'event_type'})
 
+    # in the third iteration we went through views and took those that were after cart
+    # (which were not purchased) and made assumption as it is a discard activity
     cart_not_purchase_view = pd.DataFrame()
     for dataset in data_sets:
         for chunk in pd.read_csv(dataset, chunksize=chunk_size):
@@ -218,6 +242,10 @@ def average_time_remove_from_cart(data_sets, chunk_size=1000000):
             cart_not_purchase_view = cart_not_purchase_view.drop_duplicates(subset=['event_type_x',
                                                                                     'product_id',
                                                                                     'user_id'], keep='first')
+
+    # after obtaining a dataset with all not purchased cart events and their first view after cart
+    # we find time difference between cart and first view after cart (assuming that it is discard)
+    # then we take a mean to find average time an item stays in cart before being discarded
 
     cart_time = pd.to_datetime(cart_not_purchase_view['event_time_y'])
     discard_time = pd.to_datetime(cart_not_purchase_view['event_time_x'])
@@ -237,6 +265,41 @@ def average_time_between_view_cart_purchase(data_sets, chunk_size=1000000):
     :return: Average time between view and cart, and view and purchase
     """
 
+    # FIRST TIME BETWEEN FIRST VIEW AND FIRST CART
+    # we find all cart rows
+    cart_chunk = pd.DataFrame()
+    for dataset in data_sets:
+        for chunk in pd.read_csv(dataset, chunksize=chunk_size):
+            chunk = chunk[chunk['event_type'] == 'cart']
+            chunk = chunk.drop_duplicates(subset=['product_id', 'user_id'], keep='first')
+            cart_chunk = pd.concat([cart_chunk, chunk])
+            cart_chunk = cart_chunk.drop_duplicates(subset=['product_id', 'user_id'], keep='first')
+
+    # to loosen up memory choose selected columns
+    cart_chunk = cart_chunk[['event_time', 'event_type', 'product_id', 'user_id']]
+
+    # we find those rows that were viewed and eventually added to cart
+    # we filter them by choosing those events that happened first
+    views_df = pd.DataFrame()
+    for dataset in data_sets:
+        for df in pd.read_csv(dataset, chunksize=chunk_size):
+            df = df[['event_time', 'event_type', 'product_id', 'user_id']]
+            df = df[df['event_type'] == 'view']
+            df = df.drop_duplicates(subset=['product_id', 'user_id'], keep='first')
+            df = df.merge(cart_chunk, on=['product_id', 'user_id'], how='left')
+            df = df[(df['event_time_x'] < df['event_time_y']) & (df['event_type_y'] == 'cart')]
+            views_df = pd.concat([views_df, df])
+
+    # after having dataset with all first views that were added to cart
+    # we find time difference between first cart and first view
+    # then we take a mean to find average time it takes an item to be put in cart after first view
+
+    first_cart = pd.to_datetime(views_df['event_time_y'])
+    first_view = pd.to_datetime(views_df['event_time_x'])
+    time_before_cart = (first_cart - first_view).mean()
+
+    # SECOND TIME BETWEEN FIRST VIEW AND FIRST PURCHASE
+    # in the first iteration we find all purchase rows
     purchase_chunk = pd.DataFrame()
     for dataset in data_sets:
         for chunk in pd.read_csv(dataset, chunksize=chunk_size):
@@ -247,6 +310,8 @@ def average_time_between_view_cart_purchase(data_sets, chunk_size=1000000):
 
     purchase_chunk = purchase_chunk[['event_time', 'event_type', 'product_id', 'user_id']]
 
+    # we find those rows that were viewed and eventually purchased
+    # we filter them by choosing those events that happened first
     views_df = pd.DataFrame()
     for dataset in data_sets:
         for df in pd.read_csv(dataset, chunksize=chunk_size):
@@ -257,6 +322,9 @@ def average_time_between_view_cart_purchase(data_sets, chunk_size=1000000):
             df = df[(df['event_time_x'] < df['event_time_y']) & (df['event_type_y'] == 'purchase')]
             views_df = pd.concat([views_df, df])
 
+    # after having dataset with all first views that were purchased eventually
+    # we find time difference between first purchase and first view
+    # then we take a mean to find average time it takes an item to be purchased after first view
     first_purchase = pd.to_datetime(views_df['event_time_y'])
     first_view = pd.to_datetime(views_df['event_time_x'])
     time_before_purchase = (first_purchase - first_view).mean()
@@ -272,7 +340,7 @@ def average_time_between_view_cart_purchase(data_sets, chunk_size=1000000):
     plt.grid(alpha=0.6)
     plt.show()
 
-    return before_purchase_df, time_before_purchase
+    return time_before_cart, time_before_purchase
 
 
 # -------- Research Question 2
